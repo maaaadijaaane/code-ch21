@@ -4,7 +4,8 @@
 //variables used in the server middleware.
 //////////////////////////////////////////////////////////////////////////
 import passport from 'passport';
-import passportGithub from 'passport-github'; 
+import passportGithub from 'passport-github';
+import passportGoogle from 'passport-google';  
 import session from 'express-session';
 import regeneratorRuntime from "regenerator-runtime";
 import path from 'path';
@@ -14,6 +15,7 @@ const LOCAL_PORT = 8081;
 const DEPLOY_URL = "http://localhost:8081";
 const PORT = process.env.HTTP_PORT || LOCAL_PORT;
 const GithubStrategy = passportGithub.Strategy;
+const GoogleStrategy = passportGoogle.Strategy;
 const app = express();
 
 //////////////////////////////////////////////////////////////////////////
@@ -67,6 +69,34 @@ passport.use(new GithubStrategy({
       }).save();
   }
   return done(null,currentUser);
+}));
+
+//////////////////////////////////////////////////////////////////////////
+//PASSPORT SET-UP
+//The following code sets up the app with OAuth authentication using
+//the 'google' strategy in passport.js.
+//////////////////////////////////////////////////////////////////////////
+passport.use(new GoogleStrategy({
+  clientID: "a075012c4b08543f42a8",
+  clientSecret: "8dde6978090028aee37c72df9ea7ce268678b6d3",
+  callbackURL: DEPLOY_URL + "/auth/google/callback"
+},
+//The following function is called after user authenticates with github
+async (accessToken, refreshToken, profile, done) => {
+  console.log("User authenticated through GitHub! In passport callback.");
+  //Our convention is to build userId from displayName and provider
+  const userId = `${profile.username}@${profile.provider}`;
+  //See if document with this unique userId exists in database 
+  let currentUser = await User.findOne({id: userId});
+  if (!currentUser) { //Add this user to the database
+      currentUser = await new User({
+      id: userId,
+      displayName: profile.sub,
+      authStrategy: profile.provider,
+      profileImageUrl: profile.photos[0].value
+    }).save();
+}
+return done(null,currentUser);
 }));
 
 //Serialize the current user to the session
